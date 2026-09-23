@@ -5,7 +5,13 @@ import {
   declineComment,
   squashCommitMessage,
 } from "./messages.js";
-import { boundedText, parseToken, tokenFor, verify } from "./security.js";
+import {
+  allowedFormOrigin,
+  boundedText,
+  parseToken,
+  tokenFor,
+  verify,
+} from "./security.js";
 import { details, detailsText, escape, page, reviewPage } from "./views.js";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -15,6 +21,13 @@ const prUrl = (env, number) =>
 const problem = (message, status = 409) =>
   page("Review unavailable", `<p>${escape(message)}</p>`, status);
 
+function descriptionChanged(pr, snapshot) {
+  return (
+    (pr.body ?? "") !== (snapshot.description ?? snapshot.pr.body ?? "") ||
+    pr.title !== snapshot.pr.title
+  );
+}
+
 async function current(api, row) {
   const pr = await api(`/pulls/${row.pr_number}`);
   if (
@@ -22,7 +35,8 @@ async function current(api, row) {
     pr.draft ||
     pr.head.sha !== row.head ||
     pr.base.sha !== row.base ||
-    pr.base.ref !== "main"
+    pr.base.ref !== "main" ||
+    descriptionChanged(pr, JSON.parse(row.snapshot))
   )
     throw new Error(
       "The PR is closed, draft, or has changed. Use a fresh review email.",
@@ -64,6 +78,7 @@ async function snapshotFor(api, review) {
       ...comments,
     ];
   return {
+    description: pr.body ?? "",
     pr: {
       number: pr.number,
       title: pr.title,
@@ -124,6 +139,7 @@ async function notify(request, env) {
     review.pr.base.sha !== input.base
   )
     return problem("Submission no longer passes the review.");
+  const snapshot = await snapshotFor(api, review);
   // Retried notifications for the same revision reuse the same review record.
   await env.DB.prepare(
     "INSERT OR IGNORE INTO reviews (id, repository, pr_number, head, base, expires, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -135,7 +151,7 @@ async function notify(request, env) {
       input.head,
       input.base,
       now() + 86400,
-      JSON.stringify(await snapshotFor(api, review)),
+      JSON.stringify(snapshot),
     )
     .run();
   let row = await env.DB.prepare(
@@ -143,18 +159,24 @@ async function notify(request, env) {
   )
     .bind(env.GITHUB_REPOSITORY, input.number, input.head, input.base)
     .first();
-  // An explicit workflow rerun after expiry issues a new token and email.
-  if (row.expires <= now() && row.state === "pending") {
+  // Description-only fixes do not change the commit SHA. Reopen the review
+  // with a new token when the applicant edits it, including after feedback.
+  // Never recycle a processing/error record: its GitHub writes are uncertain.
+  if (
+    ["pending", "declined"].includes(row.state) &&
+    (descriptionChanged(review.pr, JSON.parse(row.snapshot)) ||
+      (row.state === "pending" && row.expires <= now()))
+  ) {
     await env.DB.prepare(
-      "UPDATE reviews SET id = ?, expires = ?, email_sent = 0, snapshot = ? WHERE id = ? AND state = ? AND expires <= ?",
+      "UPDATE reviews SET id = ?, expires = ?, email_sent = 0, snapshot = ?, state = 'pending' WHERE id = ? AND state = ? AND snapshot = ?",
     )
       .bind(
         crypto.randomUUID(),
         now() + 86400,
-        JSON.stringify(await snapshotFor(api, review)),
+        JSON.stringify(snapshot),
         row.id,
-        "pending",
-        now(),
+        row.state,
+        row.snapshot,
       )
       .run();
     row = await env.DB.prepare(
@@ -177,7 +199,7 @@ async function notify(request, env) {
       "Email sending is in progress or needs manual delivery verification.",
       503,
     );
-  const snapshot = JSON.parse(row.snapshot);
+  const emailedSnapshot = JSON.parse(row.snapshot);
   const token = await tokenFor(row, env.REVIEW_LINK_SECRET);
   const link = new URL("/review", env.PUBLIC_URL);
   link.searchParams.set("token", token);
@@ -186,9 +208,9 @@ async function notify(request, env) {
     await env.EMAIL.send({
       from: env.EMAIL_FROM,
       to: env.REVIEW_EMAIL,
-      subject: `moe.page: review PR #${row.pr_number} by ${snapshot.pr.user.login}`,
-      text: `${detailsText(snapshot)}\n\nReview and approve: ${link}\nDecline with a message: ${decline}\nGitHub: ${prUrl(env, row.pr_number)}\n\nLinks expire in 24 hours. Opening a link does not perform an action. Keep the links private. Website content still needs your review.`,
-      html: `<h1>Submission ready for your review</h1><p>Format checks passed. Website content still needs your review.</p>${details(snapshot)}<p><a href="${escape(link)}">Review &amp; approve</a></p><p><a href="${escape(decline)}">Decline with a message</a></p><p><a href="${escape(prUrl(env, row.pr_number))}">View PR on GitHub</a></p><p>Links expire in 24 hours. Opening a link does not perform an action. Keep the links private.</p>`,
+      subject: `moe.page: review PR #${row.pr_number} by ${emailedSnapshot.pr.user.login}`,
+      text: `${detailsText(emailedSnapshot)}\n\nReview and approve: ${link}\nRequest changes: ${decline}\nGitHub: ${prUrl(env, row.pr_number)}\n\nLinks expire in 24 hours. Opening a link does not perform an action. Keep the links private. Website content still needs your review.`,
+      html: `<h1>Submission ready for your review</h1><p>Format checks passed. Website content still needs your review.</p>${details(emailedSnapshot)}<p><a href="${escape(link)}">Review &amp; approve</a></p><p><a href="${escape(decline)}">Request changes</a></p><p><a href="${escape(prUrl(env, row.pr_number))}">View PR on GitHub</a></p><p>Links expire in 24 hours. Opening a link does not perform an action. Keep the links private.</p>`,
     });
   } catch {
     await env.DB.prepare("UPDATE reviews SET email_sent = -1 WHERE id = ?")
@@ -228,12 +250,7 @@ async function lookup(env, token) {
 }
 
 async function decide(request, env) {
-  const origin = request.headers.get("Origin");
-  const fetchSite = request.headers.get("Sec-Fetch-Site");
-  if (
-    (origin && origin !== new URL(env.PUBLIC_URL).origin) ||
-    fetchSite === "cross-site"
-  )
+  if (!allowedFormOrigin(request, env.PUBLIC_URL))
     return problem("Cross-site requests are not allowed.", 403);
   if (
     !request.headers
@@ -326,24 +343,19 @@ async function decide(request, env) {
           body: declineBody,
         },
       });
-      await current(api, row);
-      await api(`/pulls/${row.pr_number}`, {
-        method: "PATCH",
-        body: { state: "closed" },
-      });
     }
     await env.DB.prepare("UPDATE reviews SET state = ? WHERE id = ?")
       .bind(action === "approve" ? "merged" : "declined", row.id)
       .run();
     console.log(
       JSON.stringify({
-        event: action === "approve" ? "pr_merged" : "pr_declined",
+        event: action === "approve" ? "pr_merged" : "pr_changes_requested",
         pr: row.pr_number,
       }),
     );
     return page(
-      action === "approve" ? "Approved & merged" : "Declined",
-      `<p>${action === "approve" ? "GitHub merged this submission. The repository’s DNS deployment will run next; check GitHub for its result." : "Your message was posted as a review and the PR was closed."}</p><p><a href="${escape(prUrl(env, row.pr_number))}">View PR on GitHub</a></p>`,
+      action === "approve" ? "Approved & merged" : "Changes requested",
+      `<p>${action === "approve" ? "GitHub merged this submission. The repository’s DNS deployment will run next; check GitHub for its result." : "Your feedback was posted as a review. The PR remains open so the applicant can update the same submission."}</p><p><a href="${escape(prUrl(env, row.pr_number))}">View PR on GitHub</a></p>`,
     );
   } catch {
     // Never automatically retry a partially completed GitHub write.

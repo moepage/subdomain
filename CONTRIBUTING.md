@@ -57,3 +57,8 @@ A separate comment does not replace the PR description or trigger a check. For J
 
 If manual review is required or you need help, comment in the PR to explain the situation. A maintainer can assist or rerun the check.
 如果需要人工审核或帮助，请在 PR 下留言说明情况，由管理员协助处理或重跑检查。
+
+## Addressing maintainer feedback / 处理人工审核反馈
+
+If a maintainer requests changes, this PR stays open. Edit its description or push fixes to the same branch, following the feedback. Passing checks sends the updated submission back for review. If you fixed the website itself, update the description to explain the fix. You do not need a new PR.
+如果管理员要求修改，此 PR 会保持开放。请根据反馈修改描述，或将修复提交到同一分支；检查通过后，更新后的申请会再次进入人工审核。如果修改的是网站本身，请更新描述说明修复内容，无需新建 PR。
