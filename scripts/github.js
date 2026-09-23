@@ -231,5 +231,5 @@ export async function collectReview(api, number) {
       ...result,
       errors: ["PR changed during validation; rerun the review."],
     };
-  return { ...result, ...validation, files };
+  return { ...result, ...validation, files, commits };
 }

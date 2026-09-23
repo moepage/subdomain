@@ -18,6 +18,8 @@
   "vars": {
     "GITHUB_REPOSITORY": "moepage/subdomain",
     "MERGE_METHOD": "squash",
+    "REVIEWER_LOGIN": "maoawa",
+    "REVIEWER_COAUTHOR": "maoawa <85821597+maoawa@users.noreply.github.com>",
   },
   "send_email": [
     {

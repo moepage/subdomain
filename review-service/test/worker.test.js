@@ -22,6 +22,8 @@ const config = {
   EMAIL_FROM: "review@example.com",
 
   MERGE_METHOD: "squash",
+  REVIEWER_LOGIN: "maoawa",
+  REVIEWER_COAUTHOR: "maoawa <85821597+maoawa@users.noreply.github.com>",
 };
 const head = "a".repeat(40),
   base = "b".repeat(40);
@@ -91,7 +93,14 @@ async function reply(url, options = {}) {
     return json([{ filename: "records/luna.json", status: "added" }]);
   if (path === "/pulls/7/commits")
     return json([
-      { sha: head, parents: [{}], commit: { message: "Create luna.json" } },
+      {
+        sha: head,
+        parents: [{}],
+        commit: {
+          message: "Create luna.json",
+          author: { name: "Alice", email: "alice@example.com" },
+        },
+      },
     ]);
   if (path === `/git/trees/${base}`) return json({ tree: [] });
   if (path === `/git/trees/${head}`)
@@ -248,6 +257,15 @@ test("approval submits a pinned review and merges only the checked SHA", async (
   ]);
   expect(JSON.parse(writes[0].body).commit_id).toBe(head);
   expect(JSON.parse(writes[1].body).sha).toBe(head);
+  expect(JSON.parse(writes[0].body).body).toContain(
+    "reviewed and approved by @maoawa",
+  );
+  expect(JSON.parse(writes[1].body).commit_message).toContain(
+    "Co-authored-by: maoawa <85821597+maoawa@users.noreply.github.com>",
+  );
+  expect(JSON.parse(writes[1].body).commit_message).toContain(
+    "Co-authored-by: Alice <alice@example.com>",
+  );
   expect((await post(token, "approve")).status).toBe(410);
   expect(writes).toHaveLength(2);
 });
@@ -279,6 +297,8 @@ test("decline posts the maintainer message before closing", async () => {
   expect(comment).toContain("reason:  \n您好！感谢您的提交。");
   expect(comment).toContain("Domain or DNS issue  \n域名或 DNS 记录需要调整");
   expect(comment).toContain("Please choose a different domain.");
+  expect(comment).toContain("reviewed by @maoawa");
+  expect(comment).toContain("本申请已由 @maoawa 审核。");
   expect(comment).toContain(
     "Thank you for understanding~(∠·ω< )⌒★  \n处理完这些反馈后",
   );

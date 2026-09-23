@@ -1,6 +1,10 @@
 import { collectReview } from "../../scripts/github.js";
 import { appClient } from "./github-app.js";
-import { declineComment } from "./messages.js";
+import {
+  approvalComment,
+  declineComment,
+  squashCommitMessage,
+} from "./messages.js";
 import { boundedText, parseToken, tokenFor, verify } from "./security.js";
 import { details, detailsText, escape, page, reviewPage } from "./views.js";
 
@@ -247,7 +251,11 @@ async function decide(request, env) {
   const action = form.get("action");
   if (!["approve", "decline"].includes(action))
     return problem("Invalid action.", 400);
-  const declineBody = declineComment(form.get("reason"), form.get("message"));
+  const declineBody = declineComment(
+    form.get("reason"),
+    form.get("message"),
+    env.REVIEWER_LOGIN,
+  );
   if (action === "decline" && !declineBody)
     return problem(
       "Choose or enter a decline message (1–1000 characters).",
@@ -259,6 +267,7 @@ async function decide(request, env) {
   } catch (error) {
     return problem(error.message);
   }
+  let commitMessage;
   if (action === "approve") {
     const review = await collectReview(api, row.pr_number);
     if (
@@ -270,6 +279,12 @@ async function decide(request, env) {
     )
       return problem(
         "Checks, branch rules, or mergeability are not ready. Retry later or open GitHub.",
+      );
+    if ((env.MERGE_METHOD || "squash") === "squash" && env.REVIEWER_COAUTHOR)
+      commitMessage = squashCommitMessage(
+        review.commits,
+        env.REVIEWER_LOGIN,
+        env.REVIEWER_COAUTHOR,
       );
   }
   // A conditional D1 write serializes concurrent approve/decline requests.
@@ -288,13 +303,17 @@ async function decide(request, env) {
         body: {
           commit_id: row.head,
           event: "APPROVE",
-          body: "Approved by the maintainer through the private email review page.",
+          body: approvalComment(env.REVIEWER_LOGIN),
         },
       });
       await current(api, row);
       const merged = await api(`/pulls/${row.pr_number}/merge`, {
         method: "PUT",
-        body: { sha: row.head, merge_method: env.MERGE_METHOD || "squash" },
+        body: {
+          sha: row.head,
+          merge_method: env.MERGE_METHOD || "squash",
+          ...(commitMessage ? { commit_message: commitMessage } : {}),
+        },
       });
       if (!merged.merged) throw new Error("GitHub did not merge the PR.");
     } else {

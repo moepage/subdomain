@@ -46,6 +46,7 @@ jobs:
         run: node scripts/review-pr.js
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          REVIEWER_LOGIN: maoawa
           INPUT_PR_NUMBER: ${{ inputs.pr_number }}
           REVIEW_SERVICE_URL: ${{ vars.REVIEW_SERVICE_URL }}
           REVIEW_WEBHOOK_SECRET: ${{ secrets.REVIEW_WEBHOOK_SECRET }}
