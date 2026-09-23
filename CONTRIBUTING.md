@@ -46,3 +46,14 @@ The automated check only requires a non-empty first line of at most 200 characte
 Fix the errors in the bot's comment and push again. Draft PRs are not emailed. A passing submission gets a maintainer review; it is never automatically merged just because the check passes.
 
 For maintenance PRs, the format check deliberately fails with an explanation. A maintainer can review and merge them manually. **Do not make `submission-format` universally required** unless your branch rules provide a deliberate maintenance path.
+
+## Fixing a failed check / 修复检查失败
+
+If the bot asks for a website description, edit the first message at the top of your PR: **⋯ → Edit → Update comment**. Explain what your website is for and include its current link if available. Saving reruns the check automatically.
+如果机器人要求补充网站说明，请编辑 PR 顶部的第一条消息：**⋯ → Edit（编辑）→ Update comment（更新评论）**。说明网站用途，如已有网站请附上链接。保存后检查会自动重跑。
+
+A separate comment does not replace the PR description or trigger a check. For JSON/file errors, commit fixes to the same PR branch. Keep the PR open; a new PR is unnecessary.
+另发评论不能替代 PR 描述，也不会触发检查。JSON 或文件问题请在同一 PR 分支上提交修改。请保留此 PR，无需新建。
+
+If manual review is required or you need help, comment in the PR to explain the situation. A maintainer can assist or rerun the check.
+如果需要人工审核或帮助，请在 PR 下留言说明情况，由管理员协助处理或重跑检查。
