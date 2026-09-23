@@ -280,7 +280,7 @@ test("decline posts the maintainer message before closing", async () => {
   expect(comment).toContain("Domain or DNS issue  \n域名或 DNS 记录需要调整");
   expect(comment).toContain("Please choose a different domain.");
   expect(comment).toContain(
-    "Thank you for understanding! ฅ●ω●ฅ  \n处理完这些反馈后",
+    "Thank you for understanding~(∠·ω< )⌒★  \n处理完这些反馈后",
   );
   expect(comment.endsWith("感谢您的理解～(∠·ω< )⌒★")).toBe(true);
   expect(JSON.parse(writes[1].body)).toEqual({ state: "closed" });
