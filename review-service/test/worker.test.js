@@ -280,9 +280,9 @@ test("decline posts the maintainer message before closing", async () => {
   expect(comment).toContain("Domain or DNS issue  \n域名或 DNS 记录需要调整");
   expect(comment).toContain("Please choose a different domain.");
   expect(comment).toContain(
-    "Thank you for understanding! ฅ●ω●ฅ  \n根据以上反馈调整后",
+    "Thank you for understanding! ฅ●ω●ฅ  \n处理完这些反馈后",
   );
-  expect(comment.endsWith("感谢您的理解！ฅ●ω●ฅ")).toBe(true);
+  expect(comment.endsWith("感谢您的理解～(∠·ω< )⌒★")).toBe(true);
   expect(JSON.parse(writes[1].body)).toEqual({ state: "closed" });
 });
 test("a custom decline reason omits the selector sentinel", async () => {

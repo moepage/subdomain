@@ -32,5 +32,5 @@ export function declineComment(selected, custom) {
   const explanation = [preset && `${preset.en}  \n${preset.zh}`, note]
     .filter(Boolean)
     .join("\n\n");
-  return `Hi! Thanks for your submission. After reviewing it, we're unable to accept it for the following reason:  \n您好！感谢您的提交。经审核，我们暂时无法接受此申请，原因如下：\n\n${explanation}\n\nYou're welcome to open a new pull request once you've addressed this feedback. Thank you for understanding! ฅ●ω●ฅ  \n根据以上反馈调整后，欢迎您提交新的 Pull Request。感谢您的理解！ฅ●ω●ฅ`;
+  return `Hi! Thanks for your submission. After reviewing it, we're unable to accept it for the following reason:  \n您好！感谢您的提交。经审核，我们暂时无法接受此申请，原因如下：\n\n${explanation}\n\nYou're welcome to open a new pull request once you've addressed this feedback. Thank you for understanding! ฅ●ω●ฅ  \n处理完这些反馈后，欢迎您提交新的 Pull Request。感谢您的理解～(∠·ω< )⌒★`;
 }
