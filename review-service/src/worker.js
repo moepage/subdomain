@@ -1,5 +1,6 @@
 import { collectReview } from "../../scripts/github.js";
 import { appClient } from "./github-app.js";
+import { declineComment } from "./messages.js";
 import { boundedText, parseToken, tokenFor, verify } from "./security.js";
 import { details, detailsText, escape, page, reviewPage } from "./views.js";
 
@@ -246,12 +247,8 @@ async function decide(request, env) {
   const action = form.get("action");
   if (!["approve", "decline"].includes(action))
     return problem("Invalid action.", 400);
-  const custom = form.get("message")?.trim();
-  const reason = custom || form.get("reason")?.trim();
-  if (
-    action === "decline" &&
-    (!reason || reason === "custom" || reason.length > 1000)
-  )
+  const declineBody = declineComment(form.get("reason"), form.get("message"));
+  if (action === "decline" && !declineBody)
     return problem(
       "Choose or enter a decline message (1–1000 characters).",
       400,
@@ -307,7 +304,7 @@ async function decide(request, env) {
         body: {
           commit_id: row.head,
           event: "REQUEST_CHANGES",
-          body: `Declined by the maintainer through the private email review page.\n\n${reason}`,
+          body: declineBody,
         },
       });
       await current(api, row);

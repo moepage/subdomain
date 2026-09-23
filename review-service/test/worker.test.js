@@ -265,6 +265,8 @@ test("decline posts the maintainer message before closing", async () => {
   expect(
     (
       await post(token, "decline", {
+        reason:
+          "The requested domain or DNS records are not suitable. Please revise your submission.",
         message: "Please choose a different domain.",
       })
     ).status,
@@ -273,10 +275,24 @@ test("decline posts the maintainer message before closing", async () => {
     event: "REQUEST_CHANGES",
     commit_id: head,
   });
-  expect(JSON.parse(writes[0].body).body).toContain(
-    "Please choose a different domain.",
+  expect(JSON.parse(writes[0].body).body).toBe(
+    "Hi! Thanks for your submission. After reviewing it, we're unable to accept it for the following reason:\n\nThe requested domain or DNS records are not suitable. Please revise your submission.\n\nPlease choose a different domain.\n\nYou're welcome to open a new pull request once you've addressed this feedback. Thank you for understanding!",
   );
   expect(JSON.parse(writes[1].body)).toEqual({ state: "closed" });
+});
+test("a custom decline reason omits the selector sentinel", async () => {
+  const { token } = await seeded();
+  expect(
+    (
+      await post(token, "decline", {
+        reason: "custom",
+        message: "Please explain how this domain will be used.",
+      })
+    ).status,
+  ).toBe(200);
+  const body = JSON.parse(writes[0].body).body;
+  expect(body).toContain("Please explain how this domain will be used.");
+  expect(body).not.toContain("custom");
 });
 test("missing decline message and cross-site submissions make no changes", async () => {
   const { token } = await seeded();
