@@ -4,15 +4,23 @@ import worker from "../src/worker.js";
 import { parseToken, sign, tokenFor } from "../src/security.js";
 import migration from "../migrations/0001_reviews.sql?raw";
 
+vi.mock("../src/github-app.js", async () => {
+  const { githubClient } = await import("../../scripts/github.js");
+  return {
+    appClient: async (config) =>
+      githubClient(config.GITHUB_TOKEN, config.GITHUB_REPOSITORY),
+  };
+});
+
 const config = {
-  GITHUB_REPOSITORY: "zknmoe/moe.page-subdomains",
+  GITHUB_REPOSITORY: "moepage/subdomain",
   GITHUB_TOKEN: "test-only",
   PUBLIC_URL: "https://review.example.com",
   REVIEW_LINK_SECRET: "local-link-secret-".repeat(3),
   REVIEW_WEBHOOK_SECRET: "local-webhook-secret-".repeat(3),
   REVIEW_EMAIL: "maintainer@example.com",
-  EMAIL_FROM: "Review <review@example.com>",
-  RESEND_API_KEY: "test-only",
+  EMAIL_FROM: "review@example.com",
+
   MERGE_METHOD: "squash",
 };
 const head = "a".repeat(40),
@@ -39,9 +47,10 @@ const pr = () => ({
   base: { sha: base, ref: "main" },
 });
 let mockFetch;
+let sendMail;
 let currentPr;
 let writes;
-const bindings = () => ({ ...env, ...config });
+const bindings = () => ({ ...env, ...config, EMAIL: { send: sendMail } });
 const snapshot = () => ({
   pr: pr(),
   files: [
@@ -59,7 +68,19 @@ const json = (value) =>
   });
 async function reply(url, options = {}) {
   const parsed = new URL(url);
-  const path = parsed.pathname.replace("/repos/zknmoe/moe.page-subdomains", "");
+  const path = parsed.pathname.replace("/repos/moepage/subdomain", "");
+  if (parsed.pathname === "/graphql")
+    return json({
+      data: {
+        repository: {
+          record0: {
+            text: JSON.stringify(record),
+            byteSize: 100,
+            isBinary: false,
+          },
+        },
+      },
+    });
   if (options.method && options.method !== "GET") {
     writes.push({ path, ...options });
     if (path.endsWith("/merge")) return json({ merged: true });
@@ -75,7 +96,15 @@ async function reply(url, options = {}) {
   if (path === `/git/trees/${base}`) return json({ tree: [] });
   if (path === `/git/trees/${head}`)
     return json({
-      tree: [{ path: "records/luna.json", mode: "100644", type: "blob" }],
+      tree: [
+        {
+          path: "records/luna.json",
+          mode: "100644",
+          sha: "c".repeat(40),
+          size: 100,
+          type: "blob",
+        },
+      ],
     });
   if (path.startsWith("/contents/"))
     return json({
@@ -107,6 +136,7 @@ beforeEach(async () => {
   await env.DB.exec(migration.replace(/\n/g, " "));
   currentPr = pr();
   writes = [];
+  sendMail = vi.fn(async () => ({ messageId: "test-message" }));
   mockFetch = vi.fn(reply);
   vi.stubGlobal("fetch", mockFetch);
 });
@@ -283,9 +313,8 @@ test("ambiguous merge failures lock the link for manual recovery", async () => {
 test("signed notifications send complete email once per revision", async () => {
   expect((await notification()).status).toBe(200);
   expect((await notification()).status).toBe(200);
-  const mails = writes.filter((item) => item.path === "/emails");
-  expect(mails).toHaveLength(1);
-  const mail = JSON.parse(mails[0].body);
+  expect(sendMail).toHaveBeenCalledTimes(1);
+  const mail = sendMail.mock.calls[0][0];
   for (const text of [
     "alice@example.com",
     "luna.moe.page",
@@ -296,28 +325,26 @@ test("signed notifications send complete email once per revision", async () => {
     "#decline",
   ])
     expect(mail.text).toContain(text);
-  expect(mail.to).toEqual([config.REVIEW_EMAIL]);
+  expect(mail.to).toEqual(config.REVIEW_EMAIL);
   expect(mail.html).not.toContain("<script>");
 });
 test("unsigned notification is rejected without GitHub or email requests", async () => {
   expect((await notification("0".repeat(64))).status).toBe(401);
   expect(mockFetch).not.toHaveBeenCalled();
 });
-test("email provider errors can be retried using the same idempotency key", async () => {
-  mockFetch.mockImplementation(async (url, options) =>
-    String(url).includes("api.resend.com")
-      ? new Response("failed", { status: 503 })
-      : reply(url, options),
-  );
+test("uncertain email failures are locked instead of blindly retried", async () => {
+  sendMail.mockRejectedValue(new Error("provider unavailable"));
   expect((await notification()).status).toBe(502);
-  const first = mockFetch.mock.calls.find(([url]) =>
-    String(url).includes("api.resend.com"),
-  )[1].headers["Idempotency-Key"];
-  mockFetch.mockImplementation(reply);
-  expect((await notification()).status).toBe(200);
+  expect((await notification()).status).toBe(503);
+  expect(sendMail).toHaveBeenCalledTimes(1);
   expect(
-    writes.find((item) => item.path === "/emails").headers["Idempotency-Key"],
-  ).toBe(first);
+    (await env.DB.prepare("SELECT email_sent FROM reviews").first()).email_sent,
+  ).toBe(-1);
+});
+test("concurrent notifications send only one email", async () => {
+  const results = await Promise.all([notification(), notification()]);
+  expect(results.some((response) => response.status === 200)).toBe(true);
+  expect(sendMail).toHaveBeenCalledTimes(1);
 });
 test("a push after approval review prevents the merge", async () => {
   const { token } = await seeded();
@@ -345,7 +372,7 @@ test("expired notifications create fresh links when the workflow is rerun", asyn
       .bind(row.id)
       .first(),
   ).toBeNull();
-  const mail = JSON.parse(writes.find((item) => item.path === "/emails").body);
+  const mail = sendMail.mock.calls[0][0];
   expect(mail.text).not.toContain(row.token);
 });
 test("oversized and wrong-method requests do not trigger mutations", async () => {

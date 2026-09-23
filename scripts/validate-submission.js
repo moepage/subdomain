@@ -149,32 +149,18 @@ export function validateSubmission({
     errors.push(`A submission must change 1–${MAX_FILES} record files.`);
   if (!commits.length || commits.length > 100)
     errors.push("A submission must contain 1–100 commits.");
-  const changedDomains = files.map((file) =>
-    file.filename.replace(/^records\//, "").replace(/\.json$/, ""),
-  );
   for (const commit of commits) {
-    if (commit.parents?.length > 1) continue; // GitHub-generated merge/sync commits.
+    if (commit.parents?.length > 1) continue;
     const subject = commit.commit.message.split("\n")[0];
-    const scoped = subject.match(/^(?:add|update|fix)\(([a-z\d_.-]+)\): /i);
-    const named = subject.match(
-      /^(?:Create|Update|Add|Fix) (?:records\/)?([a-z\d_.-]+)\.json(?: |$)/i,
-    );
-    if ((scoped || named) && !changedDomains.includes((scoped || named)[1]))
-      errors.push(
-        `Commit ${commit.sha.slice(0, 7)}: name a domain or file changed by this PR.`,
-      );
     if (
-      subject.length > 120 ||
-      !(
-        /^(?:add|update|fix)\([a-z\d_.-]+\): \S.+$/i.test(subject) ||
-        /^(?:Create|Update|Add|Fix) (?:records\/)?[a-z\d_.-]+\.json(?: .+)?$/i.test(
-          subject,
-        )
-      )
-    )
+      !subject.trim() ||
+      subject.length > 200 ||
+      /[\x00-\x1f\x7f]/.test(subject)
+    ) {
       errors.push(
-        `Commit ${commit.sha.slice(0, 7)}: use "add(luna): describe the change" or "Create luna.json" (max 120 characters).`,
+        `Commit ${commit.sha.slice(0, 7)}: use a non-empty, readable first line up to 200 characters. GitHub's default message is fine.`,
       );
+    }
   }
   for (const file of files) {
     if (

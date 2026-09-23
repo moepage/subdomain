@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | **English**
 
-[![GitHub Actions Status](https://github.com/zknmoe/moe.page-subdomains/actions/workflows/deploy.yml/badge.svg)](https://github.com/zknmoe/moe.page-subdomains/actions)
+[![GitHub Actions Status](https://github.com/moepage/subdomain/actions/workflows/deploy.yml/badge.svg)](https://github.com/moepage/subdomain/actions)
 
 > Get your own `.moe.page` subdomain with a pull request!
 
@@ -50,7 +50,7 @@ Nested names such as `wiki.luna` and verification labels such as `_atproto.luna`
 
 ### Step 4: Submit a pull request
 
-1. Commit with a message such as `add(luna): add my personal blog`. GitHub's default `Create luna.json` and `Update luna.json` messages also work. See the full [submission rules](CONTRIBUTING.md).
+1. Keep GitHub’s default commit message (such as `Create luna.json`) or write a short description. No special commit format is required.
 2. Return to your fork's homepage and select **Contribute → Open pull request**.
 3. Target `main` and describe what your website does in the PR description.
 4. The bot checks commit messages, JSON and DNS formats, and recorded ownership, then leaves or updates a comment explaining the result.

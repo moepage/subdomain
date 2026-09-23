@@ -8,26 +8,78 @@ import {
 export function githubClient(token, repository, fetcher = fetch) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository))
     throw new Error("Invalid repository.");
-  return async (path, options = {}) => {
-    const response = await fetcher(
-      `https://api.github.com/repos/${repository}${path}`,
-      {
-        ...options,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "moe-page-review",
-          ...options.headers,
-        },
-        ...(options.body ? { body: JSON.stringify(options.body) } : {}),
-        signal: AbortSignal.timeout(15000),
+  const request = async (url, options = {}) => {
+    const response = await fetcher(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "moe-page-review",
+        ...options.headers,
       },
-    );
+      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+      signal: AbortSignal.timeout(15000),
+    });
     if (!response.ok)
       throw new Error(`GitHub request failed (${response.status}).`);
     return response.status === 204 ? null : response.json();
   };
+  const api = (path, options) =>
+    request(`https://api.github.com/repos/${repository}${path}`, options);
+  // Fetch immutable git blobs in batches, avoiding one HTTP request per existing
+  // domain. This keeps reviews below the Workers Free subrequest limit as they grow.
+  api.readRecords = async (entries) => {
+    const output = new Map();
+    const [owner, name] = repository.split("/");
+    for (let offset = 0; offset < entries.length; offset += 50) {
+      const batch = entries.slice(offset, offset + 50);
+      if (
+        batch.some(
+          (entry) =>
+            entry.mode !== "100644" ||
+            entry.type !== "blob" ||
+            !/^[a-f\d]{40}$/.test(entry.sha) ||
+            entry.size > MAX_BYTES,
+        )
+      )
+        throw new Error(
+          "Record must be a regular JSON blob no larger than 32 KiB.",
+        );
+      const fields = batch
+        .map(
+          (entry, index) =>
+            `record${index}: object(oid: "${entry.sha}") { ... on Blob { text byteSize isBinary } }`,
+        )
+        .join("\n");
+      const result = await request("https://api.github.com/graphql", {
+        method: "POST",
+        body: {
+          query: `query($owner:String!, $name:String!) { repository(owner:$owner, name:$name) { ${fields} } }`,
+          variables: { owner, name },
+        },
+      });
+      if (result.errors?.length || !result.data?.repository)
+        throw new Error("GitHub could not read the complete record batch.");
+      batch.forEach((entry, index) => {
+        const blob = result.data.repository[`record${index}`];
+        if (
+          !blob ||
+          blob.isBinary ||
+          typeof blob.text !== "string" ||
+          blob.byteSize > MAX_BYTES ||
+          Buffer.byteLength(blob.text) > MAX_BYTES
+        )
+          throw new Error(
+            "Record must be a UTF-8 JSON blob no larger than 32 KiB.",
+          );
+        output.set(entry.path, blob.text);
+      });
+    }
+    return output;
+  };
+  return api;
 }
 
 export async function readRecord(api, filename, ref) {
@@ -88,9 +140,6 @@ export async function collectReview(api, number) {
         ...result,
         errors: [`${file.filename}: must be a regular non-executable file.`],
       };
-    file.text = await readRecord(api, file.filename, pr.head.sha);
-    if (file.status === "modified")
-      file.previousText = await readRecord(api, file.filename, pr.base.sha);
   }
   const domains = safeFiles
     .map((file) => file.filename.slice(8, -5))
@@ -107,6 +156,26 @@ export async function collectReview(api, number) {
         "Repository exceeds automatic namespace scan limit; manual review required.",
       ],
     };
+  const headRecords = headTree.tree.filter((entry) =>
+    safeFiles.some((file) => file.filename === entry.path),
+  );
+  const headTexts = api.readRecords ? await api.readRecords(headRecords) : null;
+  const baseTexts =
+    api.readRecords && domains.length ? await api.readRecords(records) : null;
+  for (const file of safeFiles) {
+    file.text = headTexts
+      ? headTexts.get(file.filename)
+      : await readRecord(api, file.filename, pr.head.sha);
+    if (file.status === "modified")
+      file.previousText = baseTexts
+        ? baseTexts.get(file.filename)
+        : await readRecord(api, file.filename, pr.base.sha);
+    if (
+      typeof file.text !== "string" ||
+      (file.status === "modified" && typeof file.previousText !== "string")
+    )
+      throw new Error("Incomplete record data.");
+  }
   if (domains.length) {
     // Five concurrent reads bound API pressure while keeping watch page actions responsive.
     for (let offset = 0; offset < records.length; offset += 5) {
@@ -117,7 +186,9 @@ export async function collectReview(api, number) {
               "Existing record is not a regular file; manual review required.",
             );
           const config = JSON.parse(
-            await readRecord(api, entry.path, pr.base.sha),
+            baseTexts
+              ? baseTexts.get(entry.path)
+              : await readRecord(api, entry.path, pr.base.sha),
           );
           return [
             {

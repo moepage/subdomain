@@ -8,14 +8,14 @@ Apple Watch Mail web views vary by watchOS version, mail client, and settings. T
 
 - `.github/workflows/review-submission.yml`: privileged `pull_request_target` workflow; executes only the trusted base revision. Applicant files are retrieved as bounded data through GitHub's API, never executed or installed. No PR checkout, artifact execution, or shell interpolation of applicant content.
 - `scripts/validate-submission.js`: shared format and ownership checks, used in GitHub Actions and again by the service before merging.
-- `review-service/`: Cloudflare Worker, D1 database, and Resend email integration. Approval links contain signed, expiring bearer tokens. They grant authority over one PR revision; keep them private.
+- `review-service/`: Cloudflare Worker, D1 database, and native Cloudflare email integration. Approval links contain signed, expiring bearer tokens. They grant authority over one PR revision; keep them private.
 - `.github/workflows/test.yml`: unprivileged tests for the validator and the Worker.
 
 The service is intentionally a separate deployment. Merging these files activates comments and checks; email is skipped with a workflow warning until configured. Do not publish your recipient address or credentials in this public repository.
 
 ## Provision the review service
 
-Use a Cloudflare account you administer and a verified sender in Resend. These are setup choices; this change does not provision a paid plan, add credentials, or deploy a service automatically.
+Use a Cloudflare account you administer, an Email Routing sender domain, and a verified destination address. Sending to verified destinations is supported on the free plan; this service does not need arbitrary-recipient sending or Resend. These are setup choices; this change does not provision a paid plan, add credentials, or deploy a service automatically.
 
 ```sh
 cd review-service
@@ -24,7 +24,7 @@ npx wrangler login
 npx wrangler d1 create moe-page-review
 ```
 
-Replace the placeholder `database_id` in `wrangler.jsonc` with the returned database ID. Keep `database_name`, the Worker name, and `GITHUB_REPOSITORY` aligned with your intended account and repo. Use local or staging resources first.
+The checked-in configuration identifies the production account and D1 database. For a different deployment, replace `account_id` and `database_id` with your own identifiers. Keep `database_name`, the Worker name, and `GITHUB_REPOSITORY` aligned with your intended account and repo. Use local or staging resources first.
 
 ```sh
 npx wrangler d1 migrations apply moe-page-review --remote
@@ -32,17 +32,22 @@ npx wrangler d1 migrations apply moe-page-review --remote
 
 Set the following Worker secrets using `npx wrangler secret put NAME`. Do not put values in shell command arguments or in the repository.
 
-| Secret | Value |
-| --- | --- |
-| `GITHUB_TOKEN` | Fine-grained service-account PAT restricted to this repository, with **Contents: read/write**, **Pull requests: read/write**, **Commit statuses: read**, and **Checks: read**. Metadata access is implicit. |
-| `REVIEW_WEBHOOK_SECRET` | A cryptographically random secret of at least 32 characters, shared only with GitHub Actions. |
-| `REVIEW_LINK_SECRET` | A separate random secret of at least 32 characters; only the Worker needs this. Rotating it invalidates all existing links. |
-| `RESEND_API_KEY` | Resend key with email sending access for the verified sender. |
-| `REVIEW_EMAIL` | The maintainer's destination email address. |
-| `EMAIL_FROM` | Verified sender, e.g. `moe.page reviews <reviews@your-domain.example>`. |
-| `PUBLIC_URL` | Canonical HTTPS origin of this Worker, without a path. |
+| Secret                       | Value                                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_APP_ID`              | Numeric ID of the organization-owned GitHub App.                                                                            |
+| `GITHUB_APP_INSTALLATION_ID` | Numeric installation ID for this repository.                                                                                |
+| `GITHUB_APP_PRIVATE_KEY`     | The App’s PEM private key. Upload from a protected local file/stdin; both GitHub PKCS#1 and PKCS#8 are supported.           |
+| `REVIEW_WEBHOOK_SECRET`      | A cryptographically random secret of at least 32 characters, shared only with GitHub Actions.                               |
+| `REVIEW_LINK_SECRET`         | A separate random secret of at least 32 characters; only the Worker needs this. Rotating it invalidates all existing links. |
+| `REVIEW_EMAIL`               | The maintainer's destination email address.                                                                                 |
+| `EMAIL_FROM`                 | Plain sender address on the configured domain, e.g. `reviews@your-domain.example`.                                          |
+| `PUBLIC_URL`                 | Canonical HTTPS origin of this Worker, without a path.                                                                      |
 
-Use a dedicated service account with write access, **without administrator/ruleset bypass privileges**. Its reviews and merges are attributed to that account; review text records that the decision came from the maintainer's private email page. The service account cannot approve its own PRs. Do not use `GITHUB_TOKEN` from a workflow as the Worker's credential: it expires, and merges using it generally do not trigger the existing push-based DNS deployment. A PAT or a separately implemented GitHub App installation token allows the deployment event to fire. The current implementation accepts a PAT; GitHub App token refresh is not implemented.
+Create a private GitHub App owned by the repository's organization. Disable webhooks and user OAuth authorization. Grant repository **Contents: read/write**, **Pull requests: read/write**, **Commit statuses: read**, and **Checks: read**; Metadata read access is implicit. Leave other permissions unset. Install it on **only this repository**, with no administrator/ruleset bypass privileges. Contents write is required by GitHub's merge API and also technically allows other content writes; GitHub has no merge-only permission.
+
+The Worker signs a short-lived App JWT and requests a one-hour installation token restricted to the configured repository and permissions for each request. App reviews and merges are attributed to its bot. Unlike the Actions workflow's built-in `GITHUB_TOKEN`, App installation-token merges can trigger the existing push-based DNS deployment. No personal access token or user OAuth client secret is required.
+
+Configure `send_email` with a binding named `EMAIL` and a sender allowlist matching `EMAIL_FROM`. Without a destination restriction, Cloudflare limits the binding to verified account destinations; the application sends only to the private `REVIEW_EMAIL` setting, never an applicant address. For tighter binding-level controls, use a private deployment config with `destination_address` set to the maintainer. Enable Email Routing for the sender's subdomain and verify the destination first. See [Cloudflare sending bindings](https://developers.cloudflare.com/email-service/configuration/send-bindings/) and [pricing](https://developers.cloudflare.com/email-service/platform/pricing/). Do not upgrade plans for this setup without approval.
 
 The service calls GitHub's normal merge API with the exact checked head SHA. It does not bypass protection rules, required reviews, or merge queues. All visible commit statuses must be successful and check runs must be complete and successful/neutral/skipped. If GitHub still requires additional reviews, the merge will fail and need completion on GitHub. Use GitHub directly for merge-queue-only repositories. `MERGE_METHOD` defaults to `squash` and can be changed to another method enabled in the repository.
 
@@ -52,7 +57,7 @@ npm run check
 npm run deploy
 ```
 
-D1 and the GitHub token remain server-side. The database stores submission snapshots, token identifiers, expiry, and decision states, not raw link signatures. No applicant email is used as the notification destination. Invocation logging is disabled and trace sampling is zero because review URLs contain credentials; structured application logs include only event names and PR numbers. Do not enable raw URL logging or attach third-party analytics to the review pages.
+D1, the App key, and installation tokens remain server-side. The database stores submission snapshots, token identifiers, expiry, and decision states, not raw link signatures. No applicant email is used as the notification destination. Invocation logging is disabled and trace sampling is zero because review URLs contain credentials; structured application logs include only event names and PR numbers. Do not enable raw URL logging or attach third-party analytics to the review pages.
 
 ## Connect GitHub Actions
 
@@ -73,7 +78,7 @@ A PR's exact head and base commits are fixed in each link. Changes to the PR or 
 - **Decline & close PR** requires a preset or custom message. It locks the link, posts a request-changes review pinned to the checked commit, checks the revision again, and closes the PR. The message is visible in the PR conversation.
 - Changes during validation abort the operation. Concurrent or repeated taps cannot acquire the same D1 lock twice. The merge API also atomically rejects a different head SHA. GitHub's close API has no conditional head parameter: there is a small unavoidable race after the final check when closing, so reopen on GitHub if someone pushed at that exact moment. Likewise, the base branch can move between the final read and merge; GitHub's protections are the final gate.
 - If a GitHub write partly succeeds, or a request times out after locking, the link remains `error` or `processing`. It is not automatically retried. Inspect the PR on GitHub and complete the action there. Do not reset a lock until you have established what happened.
-- Email provider failures surface in the workflow; fix the sender/API key and rerun. Resend idempotency keys prevent duplicate sends during retries. Successful API acceptance does not guarantee inbox delivery; check the provider delivery log.
+- Email sends acquire a separate D1 lock. `email_sent` is `0` (not attempted), `2` (sending), `1` (accepted), or `-1` (uncertain failure). The Cloudflare binding provides no idempotency key, so an uncertain send is not automatically retried. Inspect Cloudflare delivery logs; only after establishing non-delivery should an operator reset that row to `0` and rerun the workflow. Successful API acceptance does not guarantee inbox delivery. An explicit rerun after the 24-hour link expiry issues a new review and email.
 - The database has no automated purge. Periodically remove expired completed records according to your retention needs; keep uncertain `processing`/`error` records until resolved.
 
 ## Verification before enabling live decisions

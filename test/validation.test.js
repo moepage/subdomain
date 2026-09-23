@@ -86,7 +86,7 @@ test("checks commits, author, PR description, base and file scope", () => {
     { files: [] },
     { files: [{ filename: "scripts/malicious.js", status: "added" }] },
     { files: [{ ...file(record()), status: "removed" }] },
-    { commits: [{ sha: "a".repeat(40), commit: { message: "hello" } }] },
+    { commits: [{ sha: "a".repeat(40), commit: { message: "   " } }] },
   ])
     assert.equal(validateSubmission(submission(patch)).passed, false);
   for (const message of [
@@ -243,20 +243,29 @@ test("rejects symlink records before fetching their contents", async () => {
   };
   assert.match((await collectReview(api, 1)).errors[0], /regular/);
 });
-test("commit scopes must refer to a domain changed by the PR", () => {
-  assert.equal(
-    validateSubmission(
-      submission({
-        commits: [
-          {
-            sha: "a".repeat(40),
-            commit: { message: "add(unrelated): my blog" },
-          },
-        ],
-      }),
-    ).passed,
-    false,
-  );
+test("accepts ordinary multilingual commit messages without a special convention", () => {
+  for (const message of [
+    "Add my blog",
+    "hello",
+    "修正博客的 DNS 记录",
+    "Create luna.json",
+    "update: DNS target",
+  ]) {
+    assert.equal(
+      validateSubmission(
+        submission({ commits: [{ sha: "a".repeat(40), commit: { message } }] }),
+      ).passed,
+      true,
+    );
+  }
+  for (const message of ["", " ", "a".repeat(201), "unsafe\x00title"]) {
+    assert.equal(
+      validateSubmission(
+        submission({ commits: [{ sha: "a".repeat(40), commit: { message } }] }),
+      ).passed,
+      false,
+    );
+  }
 });
 test("legacy records without domain reserve their filenames without blocking unrelated requests", async () => {
   const pr = {

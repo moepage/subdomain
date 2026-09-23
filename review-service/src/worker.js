@@ -1,11 +1,12 @@
-import { collectReview, githubClient } from "../../scripts/github.js";
+import { collectReview } from "../../scripts/github.js";
+import { appClient } from "./github-app.js";
 import { boundedText, parseToken, tokenFor, verify } from "./security.js";
 import { details, detailsText, escape, page, reviewPage } from "./views.js";
 
 const now = () => Math.floor(Date.now() / 1000);
 const prUrl = (env, number) =>
   `https://github.com/${env.GITHUB_REPOSITORY}/pull/${number}`;
-const apiFor = (env) => githubClient(env.GITHUB_TOKEN, env.GITHUB_REPOSITORY);
+
 const problem = (message, status = 409) =>
   page("Review unavailable", `<p>${escape(message)}</p>`, status);
 
@@ -106,11 +107,11 @@ async function notify(request, env) {
   if (
     !env.REVIEW_EMAIL ||
     !env.EMAIL_FROM ||
-    !env.RESEND_API_KEY ||
+    !env.EMAIL?.send ||
     !env.PUBLIC_URL?.startsWith("https://")
   )
     return problem("Email delivery is not configured.", 503);
-  const api = apiFor(env);
+  const api = await appClient(env);
   const review = await collectReview(api, input.number);
   if (
     !review.passed ||
@@ -118,7 +119,7 @@ async function notify(request, env) {
     review.pr.base.sha !== input.base
   )
     return problem("Submission no longer passes the review.");
-  // Retried notifications for the same revision reuse the same links and email idempotency key.
+  // Retried notifications for the same revision reuse the same review record.
   await env.DB.prepare(
     "INSERT OR IGNORE INTO reviews (id, repository, pr_number, head, base, expires, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
@@ -157,34 +158,48 @@ async function notify(request, env) {
       .bind(env.GITHUB_REPOSITORY, input.number, input.head, input.base)
       .first();
   }
-  if (row.email_sent || row.state !== "pending")
+  if (row.email_sent === 1 || row.state !== "pending")
     return Response.json({ accepted: true, duplicate: true });
+  // Reserve the send before contacting the provider. An uncertain result is
+  // never retried automatically because the binding has no idempotency key.
+  const sendLock = await env.DB.prepare(
+    "UPDATE reviews SET email_sent = 2 WHERE id = ? AND email_sent = 0 AND state = 'pending'",
+  )
+    .bind(row.id)
+    .run();
+  if (sendLock.meta.changes !== 1)
+    return problem(
+      "Email sending is in progress or needs manual delivery verification.",
+      503,
+    );
   const snapshot = JSON.parse(row.snapshot);
   const token = await tokenFor(row, env.REVIEW_LINK_SECRET);
   const link = new URL("/review", env.PUBLIC_URL);
   link.searchParams.set("token", token);
   const decline = `${link}#decline`;
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": `moe-review-${row.id}`,
-    },
-    body: JSON.stringify({
+  try {
+    await env.EMAIL.send({
       from: env.EMAIL_FROM,
-      to: [env.REVIEW_EMAIL],
+      to: env.REVIEW_EMAIL,
       subject: `moe.page: review PR #${row.pr_number} by ${snapshot.pr.user.login}`,
       text: `${detailsText(snapshot)}\n\nReview and approve: ${link}\nDecline with a message: ${decline}\nGitHub: ${prUrl(env, row.pr_number)}\n\nLinks expire in 24 hours. Opening a link does not perform an action. Keep the links private. Website content still needs your review.`,
       html: `<h1>Submission ready for your review</h1><p>Format checks passed. Website content still needs your review.</p>${details(snapshot)}<p><a href="${escape(link)}">Review &amp; approve</a></p><p><a href="${escape(decline)}">Decline with a message</a></p><p><a href="${escape(prUrl(env, row.pr_number))}">View PR on GitHub</a></p><p>Links expire in 24 hours. Opening a link does not perform an action. Keep the links private.</p>`,
-    }),
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!response.ok)
+    });
+  } catch {
+    await env.DB.prepare("UPDATE reviews SET email_sent = -1 WHERE id = ?")
+      .bind(row.id)
+      .run();
+    console.error(
+      JSON.stringify({
+        event: "review_email_needs_recovery",
+        pr: row.pr_number,
+      }),
+    );
     return problem(
-      "Email provider rejected the notification; rerun after checking the sender configuration.",
+      "Email delivery could not be confirmed. Check the provider delivery log before manually retrying.",
       502,
     );
+  }
   await env.DB.prepare("UPDATE reviews SET email_sent = 1 WHERE id = ?")
     .bind(row.id)
     .run();
@@ -241,7 +256,7 @@ async function decide(request, env) {
       "Choose or enter a decline message (1–1000 characters).",
       400,
     );
-  const api = apiFor(env);
+  const api = await appClient(env);
   try {
     await current(api, row);
   } catch (error) {
@@ -350,7 +365,7 @@ export default {
             410,
           );
         try {
-          await current(apiFor(env), row);
+          await current(await appClient(env), row);
         } catch (error) {
           return problem(error.message);
         }

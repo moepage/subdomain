@@ -1,8 +1,9 @@
 # Local development only. Copy to .dev.vars (gitignored); never commit real values.
-GITHUB_TOKEN=replace-with-repository-scoped-service-token
+GITHUB_APP_ID=replace-with-app-id
+GITHUB_APP_INSTALLATION_ID=replace-with-installation-id
+GITHUB_APP_PRIVATE_KEY="replace-with-PEM-key"
 REVIEW_WEBHOOK_SECRET=replace-with-at-least-32-random-characters
 REVIEW_LINK_SECRET=replace-with-a-different-random-secret-at-least-32-characters
-RESEND_API_KEY=replace-with-email-sending-key
 REVIEW_EMAIL=maintainer@example.com
-EMAIL_FROM=moe.page reviews <reviews@your-verified-domain.example>
+EMAIL_FROM=reviews@your-verified-domain.example
 PUBLIC_URL=https://your-worker.workers.dev

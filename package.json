@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zknmoe/moe.page-subdomains.git"
+    "url": "git+https://github.com/moepage/subdomain.git"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +18,7 @@
     "axios": "^1.11.0"
   },
   "bugs": {
-    "url": "https://github.com/zknmoe/moe.page-subdomains/issues"
+    "url": "https://github.com/moepage/subdomain/issues"
   },
-  "homepage": "https://github.com/zknmoe/moe.page-subdomains#readme"
+  "homepage": "https://github.com/moepage/subdomain#readme"
 }

@@ -1,8 +1,8 @@
-# ฅ●ω●ฅ  moe.page - 免费的萌系二级域名
+# ฅ●ω●ฅ moe.page - 免费的萌系二级域名
 
 **简体中文** | [English](README.en.md)
 
-[![GitHub Actions Status](https://github.com/zknmoe/moe.page-subdomains/actions/workflows/deploy.yml/badge.svg)](https://github.com/zknmoe/moe.page-subdomains/actions)
+[![GitHub Actions Status](https://github.com/moepage/subdomain/actions/workflows/deploy.yml/badge.svg)](https://github.com/moepage/subdomain/actions)
 
 > 只需一个 Pull Request，即可拥有你的专属 `.moe.page` 域名！
 
@@ -34,29 +34,28 @@
   },
   "domain": "luna",
   "records": {
-    "A": [
-      "1.2.3.4"
-    ]
+    "A": ["1.2.3.4"]
   },
   "proxied": false
 }
 ```
 
 **字段说明:**
-* `owner`: 你的个人信息。
-* `domain`: 你想要的子域名（**必须**和文件名一致）。
-* `records`: 你想设置的 DNS 记录。
-    * `A`: 指向一个 IPv4 地址。
-    * `CNAME`: 指向另一个域名。（**注意：CNAME 很霸道，如果用了它，就不能有其他任何记录！**）
-    * `TXT`: 可以是任何文本，常用于验证。
-* `proxied`: 是否开启 Cloudflare 代理（橙色云朵），只对 A, AAAA, CNAME 记录有效。
+
+- `owner`: 你的个人信息。
+- `domain`: 你想要的子域名（**必须**和文件名一致）。
+- `records`: 你想设置的 DNS 记录。
+  - `A`: 指向一个 IPv4 地址。
+  - `CNAME`: 指向另一个域名。（**注意：CNAME 很霸道，如果用了它，就不能有其他任何记录！**）
+  - `TXT`: 可以是任何文本，常用于验证。
+- `proxied`: 是否开启 Cloudflare 代理（橙色云朵），只对 A, AAAA, CNAME 记录有效。
 
 ### 第四步：提交 Pull Request
 
 1.  完成以上步骤后，回到你仓库的首页。
 2.  你会看到一个提示，点击 `Contribute` -> `Open pull request`。
 3.  简单描述一下你的网站是做什么的，然后提交 PR。
-4.  提交说明请使用 `add(luna): add my personal blog`，也支持 GitHub 默认的 `Create luna.json` / `Update luna.json`。完整要求请查看 [提交规范](CONTRIBUTING.md)。
+4.  直接保留 GitHub 默认的提交说明（例如 `Create luna.json`），或简单描述变更即可，不需要特殊格式。详细检查规则见 [提交规范](CONTRIBUTING.md)。
 5.  机器人会检查提交信息、JSON / DNS 格式与已有记录的归属，并在 PR 中更新检查结果。检查通过后，管理员可通过邮件中的私密审核页面查看详情、批准并合并，或填写原因拒绝。邮件功能需要先完成管理员配置。
 6.  合并后，GitHub Actions 会部署 DNS 记录，请确认部署成功。
 
@@ -72,7 +71,8 @@
 
 ## 鸣谢
 
-* 感谢 [Cloudflare](https://www.cloudflare.com/) 提供的强大支持。
+- 感谢 [Cloudflare](https://www.cloudflare.com/) 提供的强大支持。
 
 ---
+
 现在就开始吧！

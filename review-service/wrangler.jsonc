@@ -1,11 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "moe-page-review",
+  "account_id": "21c28b8e58474ce2bcadbec17d99f45b",
   "main": "src/worker.js",
   // Latest compatibility date supported by the pinned local workerd runtime.
   "compatibility_date": "2026-09-21",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "routes": [{ "pattern": "moe-page.marsinside.com", "custom_domain": true }],
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "invocation_logs": false },
@@ -14,14 +16,20 @@
   // No automatic invocation logs/traces: incoming URLs contain private review tokens.
   // Explicit structured logs contain event names and PR numbers only.
   "vars": {
-    "GITHUB_REPOSITORY": "zknmoe/moe.page-subdomains",
+    "GITHUB_REPOSITORY": "moepage/subdomain",
     "MERGE_METHOD": "squash",
   },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["reviews@moe-page.marsinside.com"],
+    },
+  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "moe-page-review",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "4a3425d6-5683-43c8-b57a-1f2699110aa8",
       "migrations_dir": "migrations",
     },
   ],

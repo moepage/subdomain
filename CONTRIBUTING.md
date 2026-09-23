@@ -4,7 +4,13 @@ For a normal subdomain request, submit a PR to `main` with a short description o
 
 普通域名申请请向 `main` 提交 PR，并简要说明网站用途。机器人会检查格式并留言；检查通过不代表内容审核通过。
 
-## Files and JSON
+## Quick start
+
+Copy the README's JSON template, replace the username/domain/DNS target, save it as `records/<domain>.json`, and open a PR describing your website in one sentence. The contact email is optional. Keep `proxied` as `false` if you are unsure. The bot will explain any problem and you can edit the same PR to fix it.
+
+复制 README 模板，填写用户名、域名和 DNS 目标，保存为 `records/<域名>.json`，再提交 PR 并用一句话介绍网站即可。邮箱可不填；不确定代理设置时保留 `false`。机器人会提示问题，修改同一个 PR 即可。
+
+## Detailed checks (reference)
 
 - Change 1–10 files, only directly under `records/`, named `<domain>.json`. Automated approval accepts additions and modifications; deletions, renames, and maintenance changes require manual review.
 - Each file must be a regular, non-executable UTF-8 JSON object, at most 32 KiB.
@@ -22,20 +28,18 @@ For a normal subdomain request, submit a PR to `main` with a short description o
 
 ## Commit messages
 
-Every non-merge commit must use one of these forms (first line at most 120 characters):
+Use a short, readable commit message. **GitHub's default message is fine; no special syntax is required.** For example:
 
 ```text
-add(luna): add my personal blog
-update(luna): enable Cloudflare proxy
-fix(luna): correct the CNAME target
 Create luna.json
 Update luna.json
-Add luna.json for DNS record configuration
+Add my personal blog
+修正博客的 DNS 记录
 ```
 
-The verbs `add`, `update`, and `fix` and GitHub-style `Create`, `Update`, `Add`, and `Fix` are accepted case-insensitively. In the first form, use the domain inside parentheses and a meaningful description after `: `. In the GitHub-style form, use the JSON filename. GitHub-generated merge/sync commits are exempt. PRs with more than 100 commits need manual review.
+The automated check only requires a non-empty first line of at most 200 characters, without control characters. Merge/sync commits are exempt. PRs with more than 100 commits need manual review.
 
-每个非合并提交均需使用上述格式，首行不超过 120 字符。支持 GitHub 网页编辑器默认生成的 `Create xxx.json` 和 `Update xxx.json`。
+**不需要学习特殊的提交格式，直接保留 GitHub 默认的提交说明即可。** 也可以用中文或其他语言简要说明变更。首行非空、不超过 200 字符，且不含控制字符即可。
 
 ## Review results
 
