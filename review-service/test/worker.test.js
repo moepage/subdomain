@@ -275,9 +275,14 @@ test("decline posts the maintainer message before closing", async () => {
     event: "REQUEST_CHANGES",
     commit_id: head,
   });
-  expect(JSON.parse(writes[0].body).body).toBe(
-    "Hi! Thanks for your submission. After reviewing it, we're unable to accept it for the following reason:\n\nThe requested domain or DNS records are not suitable. Please revise your submission.\n\nPlease choose a different domain.\n\nYou're welcome to open a new pull request once you've addressed this feedback. Thank you for understanding!",
+  const comment = JSON.parse(writes[0].body).body;
+  expect(comment).toContain("reason:  \n您好！感谢您的提交。");
+  expect(comment).toContain("Domain or DNS issue  \n域名或 DNS 记录需要调整");
+  expect(comment).toContain("Please choose a different domain.");
+  expect(comment).toContain(
+    "Thank you for understanding! ฅ●ω●ฅ  \n根据以上反馈调整后",
   );
+  expect(comment.endsWith("感谢您的理解！ฅ●ω●ฅ")).toBe(true);
   expect(JSON.parse(writes[1].body)).toEqual({ state: "closed" });
 });
 test("a custom decline reason omits the selector sentinel", async () => {
@@ -421,5 +426,32 @@ test("oversized and wrong-method requests do not trigger mutations", async () =>
       )
     ).status,
   ).toBe(404);
+  expect(writes).toHaveLength(0);
+});
+
+test("inappropriate-content preset posts bilingual feedback before closing", async () => {
+  const { token } = await seeded();
+  expect(
+    (
+      await post(token, "decline", {
+        reason: "inappropriate-content",
+        message: "Please remove the unsuitable material.",
+      })
+    ).status,
+  ).toBe(200);
+  const comment = JSON.parse(writes[0].body).body;
+  expect(comment).toContain("Inappropriate content  \n网站包含不适宜的内容");
+  expect(comment).toContain("Please remove the unsuitable material.");
+  expect(writes.map((item) => item.path)).toEqual([
+    "/pulls/7/reviews",
+    "/pulls/7",
+  ]);
+});
+test("unknown decline presets cannot silently replace bilingual reasons", async () => {
+  const { token } = await seeded();
+  expect(
+    (await post(token, "decline", { reason: "unknown", message: "A note" }))
+      .status,
+  ).toBe(400);
   expect(writes).toHaveLength(0);
 });
