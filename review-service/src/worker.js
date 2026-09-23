@@ -44,24 +44,129 @@ async function current(api, row) {
   return pr;
 }
 
-export async function checksPassed(api, head) {
+export async function checkReadiness(api, head) {
   const [status, checks] = await Promise.all([
     api(`/commits/${head}/status?per_page=100`),
     api(`/commits/${head}/check-runs?per_page=100&filter=latest`),
   ]);
-  return (
-    status.state === "success" &&
-    status.statuses.some(
+  const reasons = [];
+  if (checks.total_count > 100 || status.total_count > 100)
+    return {
+      passed: false,
+      reasons: ["Too many checks to verify here. Review the checks on GitHub."],
+    };
+  for (const item of status.statuses)
+    if (item.state !== "success")
+      reasons.push(`Commit status “${item.context}” is ${item.state}.`);
+  if (
+    !status.statuses.some(
       (item) =>
         item.context === "submission-format" && item.state === "success",
-    ) &&
-    checks.total_count <= 100 &&
-    checks.check_runs.every(
-      (check) =>
-        check.status === "completed" &&
-        ["success", "neutral", "skipped"].includes(check.conclusion),
     )
+  )
+    reasons.push("The submission-format check has not passed yet.");
+  if (status.state !== "success" && !reasons.length)
+    reasons.push(`GitHub reports commit statuses as ${status.state}.`);
+
+  // GitHub's filter=latest is per check suite, not per workflow across events.
+  // A description edit can create another suite on the same commit. Resolve
+  // duplicate Actions job names to workflow identities before replacing a run;
+  // unrelated workflows/apps with the same job name must never mask failures.
+  const groups = new Map();
+  for (const check of checks.check_runs) {
+    const key = JSON.stringify([check.app?.id, check.name]);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(check);
+  }
+  const candidates = checks.check_runs.filter(
+    (check) =>
+      check.app?.id === 15368 &&
+      check.app?.slug === "github-actions" &&
+      groups.get(JSON.stringify([check.app.id, check.name])).length > 1,
   );
+  const runIds = new Map();
+  for (const check of candidates) {
+    const match =
+      /^https:\/\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/(\d+)\/job\/\d+$/.exec(
+        check.details_url ?? "",
+      );
+    if (!match)
+      return {
+        passed: false,
+        reasons: [
+          "Cannot identify repeated workflow checks. Open GitHub to review them.",
+        ],
+      };
+    runIds.set(check.id, match[1]);
+  }
+  if (new Set(runIds.values()).size > 20)
+    return {
+      passed: false,
+      reasons: [
+        "Too many repeated workflow runs to verify here. Review them on GitHub.",
+      ],
+    };
+  const runs = new Map(
+    await Promise.all(
+      [...new Set(runIds.values())].map(async (id) => [
+        id,
+        await api(`/actions/runs/${id}`),
+      ]),
+    ),
+  );
+  const latest = new Map();
+  const independent = checks.check_runs.filter(
+    (check) => !runIds.has(check.id),
+  );
+  for (const check of candidates) {
+    const run = runs.get(runIds.get(check.id));
+    if (
+      String(run.id) !== runIds.get(check.id) ||
+      run.head_sha !== head ||
+      run.check_suite_id !== check.check_suite?.id ||
+      !Number.isSafeInteger(run.workflow_id) ||
+      !Number.isSafeInteger(run.run_number) ||
+      !Number.isSafeInteger(run.run_attempt) ||
+      typeof run.event !== "string"
+    )
+      return {
+        passed: false,
+        reasons: [
+          "GitHub returned inconsistent workflow details. Retry later or inspect the checks on GitHub.",
+        ],
+      };
+    const key = JSON.stringify([
+      check.app.id,
+      run.workflow_id,
+      run.event,
+      check.name,
+    ]);
+    const previous = latest.get(key);
+    if (
+      !previous ||
+      run.run_number > previous.run.run_number ||
+      (run.run_number === previous.run.run_number &&
+        run.run_attempt > previous.run.run_attempt) ||
+      (run.run_number === previous.run.run_number &&
+        run.run_attempt === previous.run.run_attempt &&
+        check.id > previous.check.id)
+    )
+      latest.set(key, { check, run });
+  }
+  for (const check of [
+    ...independent,
+    ...[...latest.values()].map((item) => item.check),
+  ]) {
+    if (check.status !== "completed")
+      reasons.push(
+        `Check “${check.name}” is ${check.status}. Wait for it to finish, then retry.`,
+      );
+    else if (!["success", "neutral", "skipped"].includes(check.conclusion))
+      reasons.push(
+        `Check “${check.name}” finished with ${check.conclusion}. Open GitHub for its details.`,
+      );
+  }
+  return { passed: reasons.length === 0, reasons };
 }
 
 async function snapshotFor(api, review) {
@@ -287,16 +392,22 @@ async function decide(request, env) {
   let commitMessage;
   if (action === "approve") {
     const review = await collectReview(api, row.pr_number);
-    if (
-      !review.passed ||
-      review.pr.head.sha !== row.head ||
-      review.pr.base.sha !== row.base ||
-      review.pr.mergeable !== true ||
-      !(await checksPassed(api, row.head))
-    )
+    if (!review.passed)
       return problem(
-        "Checks, branch rules, or mergeability are not ready. Retry later or open GitHub.",
+        `Submission validation failed: ${review.errors.join("; ")}`,
       );
+    if (review.pr.head.sha !== row.head || review.pr.base.sha !== row.base)
+      return problem("The PR revision changed. Use the latest review email.");
+    if (review.pr.mergeable === null)
+      return problem(
+        "GitHub is still calculating mergeability. Wait a moment, then retry using this email.",
+      );
+    if (review.pr.mergeable !== true)
+      return problem(
+        "This PR has merge conflicts. Resolve them on GitHub before approving.",
+      );
+    const readiness = await checkReadiness(api, row.head);
+    if (!readiness.passed) return problem(readiness.reasons.join(" "));
     if ((env.MERGE_METHOD || "squash") === "squash" && env.REVIEWER_COAUTHOR)
       commitMessage = squashCommitMessage(
         review.commits,
