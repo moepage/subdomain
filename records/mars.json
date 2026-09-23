@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "maoawa"
+  },
+  "domain": "mars",
+  "records": {
+    "CNAME": ["maao-cc.pages.dev"]
+  },
+  "proxied": true
+}
