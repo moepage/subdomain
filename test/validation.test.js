@@ -258,3 +258,53 @@ test("commit scopes must refer to a domain changed by the PR", () => {
     false,
   );
 });
+test("legacy records without domain reserve their filenames without blocking unrelated requests", async () => {
+  const pr = {
+    state: "open",
+    draft: false,
+    body: "My blog.",
+    user: { login: "alice" },
+    changed_files: 1,
+    commits: 1,
+    head: { sha: "head" },
+    base: { sha: "base", ref: "main" },
+  };
+  let legacyName = "legacy";
+  const api = async (path) => {
+    if (path === "/pulls/1") return pr;
+    if (path.includes("/files")) return [file(record())];
+    if (path.includes("/commits")) return submission().commits;
+    if (path.includes("/git/trees/"))
+      return {
+        tree: [
+          {
+            path: `records/${path.includes("/base?") ? legacyName : "luna"}.json`,
+            type: "blob",
+            mode: "100644",
+          },
+        ],
+      };
+    if (path.includes("/contents/"))
+      return {
+        type: "file",
+        encoding: "base64",
+        size: 100,
+        content: Buffer.from(
+          JSON.stringify(
+            path.endsWith("ref=base")
+              ? {
+                  owner: { username: "bob" },
+                  record: { CNAME: "old.example.com" },
+                }
+              : record(),
+          ),
+        ).toString("base64"),
+      };
+    throw Error(`Unexpected API path: ${path}`);
+  };
+  assert.equal((await collectReview(api, 1)).passed, true);
+  legacyName = "luna";
+  const result = await collectReview(api, 1);
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.some((error) => error.includes("another owner")));
+});

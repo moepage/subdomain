@@ -119,12 +119,14 @@ export async function collectReview(api, number) {
           const config = JSON.parse(
             await readRecord(api, entry.path, pr.base.sha),
           );
-          if (typeof config.domain !== "string")
-            throw new Error(`Cannot verify namespace in ${entry.path}.`);
           return [
             {
               filename: entry.path,
-              domain: config.domain.toLowerCase(),
+              // Legacy files may omit domain; their filenames still reserve the name.
+              domain:
+                typeof config.domain === "string"
+                  ? config.domain.toLowerCase()
+                  : entry.path.slice(8, -5),
               owner: config.owner?.username,
             },
             // Reserve the filename too, including legacy mismatched records.
