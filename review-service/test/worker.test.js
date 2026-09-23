@@ -276,9 +276,9 @@ test("concurrent decisions acquire only one D1 lock", async () => {
     post(token, "decline", { message: "Please revise." }),
   ]);
   expect(results.filter((response) => response.status === 200)).toHaveLength(1);
-  expect(writes).toHaveLength(2);
+  expect([1, 2]).toContain(writes.length);
 });
-test("decline posts the maintainer message before closing", async () => {
+test("requesting changes posts feedback once and keeps the PR open", async () => {
   const { token } = await seeded();
   expect(
     (
@@ -300,10 +300,15 @@ test("decline posts the maintainer message before closing", async () => {
   expect(comment).toContain("reviewed by @maoawa");
   expect(comment).toContain("本申请已由 @maoawa 审核。");
   expect(comment).toContain(
-    "Thank you for understanding~(∠·ω< )⌒★  \n处理完这些反馈后",
+    "Thank you for understanding~(∠·ω< )⌒★  \n如需帮助",
   );
   expect(comment.endsWith("感谢您的理解～(∠·ω< )⌒★")).toBe(true);
-  expect(JSON.parse(writes[1].body)).toEqual({ state: "closed" });
+  expect(writes.map((item) => item.path)).toEqual(["/pulls/7/reviews"]);
+  expect(comment).toContain("Please update this pull request");
+  expect(comment).toContain("无需新建");
+  expect(comment).not.toContain("open a new pull request");
+  expect((await post(token, "decline", { message: "Again" })).status).toBe(410);
+  expect(writes).toHaveLength(1);
 });
 test("a custom decline reason omits the selector sentinel", async () => {
   const { token } = await seeded();
@@ -449,7 +454,7 @@ test("oversized and wrong-method requests do not trigger mutations", async () =>
   expect(writes).toHaveLength(0);
 });
 
-test("inappropriate-content preset posts bilingual feedback before closing", async () => {
+test("inappropriate-content preset posts bilingual feedback without closing", async () => {
   const { token } = await seeded();
   expect(
     (
@@ -462,10 +467,7 @@ test("inappropriate-content preset posts bilingual feedback before closing", asy
   const comment = JSON.parse(writes[0].body).body;
   expect(comment).toContain("Inappropriate content  \n网站包含不适宜的内容");
   expect(comment).toContain("Please remove the unsuitable material.");
-  expect(writes.map((item) => item.path)).toEqual([
-    "/pulls/7/reviews",
-    "/pulls/7",
-  ]);
+  expect(writes.map((item) => item.path)).toEqual(["/pulls/7/reviews"]);
 });
 test("unknown decline presets cannot silently replace bilingual reasons", async () => {
   const { token } = await seeded();
@@ -474,4 +476,113 @@ test("unknown decline presets cannot silently replace bilingual reasons", async 
       .status,
   ).toBe(400);
   expect(writes).toHaveLength(0);
+});
+
+for (const origin of ["null", ""]) {
+  test(`mail-browser forms with origin ${origin || "absent"} still require a signed token`, async () => {
+    const { token } = await seeded();
+    const headers = { "Sec-Fetch-Site": "cross-site" };
+    if (origin) headers.Origin = origin;
+    const send = (value) =>
+      worker.fetch(
+        new Request(`${config.PUBLIC_URL}/decision`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            ...headers,
+          },
+          body: new URLSearchParams({
+            token: value,
+            action: "decline",
+            reason: "custom",
+            message: "Please clarify.",
+          }),
+        }),
+        bindings(),
+      );
+    expect((await send(`${token}x`)).status).toBe(410);
+    expect(writes).toHaveLength(0);
+    expect((await send(token)).status).toBe(200);
+    expect(writes.map((item) => item.path)).toEqual(["/pulls/7/reviews"]);
+  });
+}
+test("explicit foreign origins are blocked even with a valid review token", async () => {
+  const { token } = await seeded();
+  expect(
+    (
+      await post(
+        token,
+        "decline",
+        { message: "Please clarify." },
+        {
+          Origin: "https://evil.example",
+          "Sec-Fetch-Site": "same-origin",
+        },
+      )
+    ).status,
+  ).toBe(403);
+  expect(writes).toHaveLength(0);
+});
+test("description edits invalidate old links and return requested changes for review once", async () => {
+  const { token } = await seeded();
+  expect(
+    (await post(token, "decline", { message: "Please explain your website." }))
+      .status,
+  ).toBe(200);
+  expect((await notification()).status).toBe(200);
+  expect(sendMail).not.toHaveBeenCalled();
+  currentPr.body = "My personal blog with travel photos; https://example.com";
+  expect((await notification()).status).toBe(200);
+  expect((await notification()).status).toBe(200);
+  expect(sendMail).toHaveBeenCalledTimes(1);
+  const row = await env.DB.prepare("SELECT * FROM reviews").first();
+  expect(row.state).toBe("pending");
+  expect(sendMail.mock.calls[0][0].text).toContain(currentPr.body);
+  expect((await post(token, "approve")).status).toBe(410);
+  const freshToken = await tokenFor(row, config.REVIEW_LINK_SECRET);
+  expect((await post(freshToken, "approve")).status).toBe(200);
+});
+test("pending description edits block stale decisions before notification arrives", async () => {
+  const { token } = await seeded();
+  currentPr.body = "Updated website purpose";
+  expect((await get(token)).status).toBe(409);
+  expect(
+    (await post(token, "decline", { message: "Old feedback" })).status,
+  ).toBe(409);
+  expect(writes).toHaveLength(0);
+  expect((await notification()).status).toBe(200);
+  expect((await get(token)).status).toBe(410);
+  expect(sendMail).toHaveBeenCalledTimes(1);
+});
+test("a new commit after feedback returns for review", async () => {
+  const { token } = await seeded();
+  expect(
+    (await post(token, "decline", { message: "Please revise." })).status,
+  ).toBe(200);
+  // The previous review belongs to an earlier commit; the notification fixture
+  // and current PR still describe the latest commit.
+  await env.DB.prepare("UPDATE reviews SET head = ?")
+    .bind("e".repeat(40))
+    .run();
+  expect((await notification()).status).toBe(200);
+  expect(sendMail).toHaveBeenCalledTimes(1);
+  expect(
+    (await env.DB.prepare("SELECT COUNT(*) AS n FROM reviews").first()).n,
+  ).toBe(2);
+});
+test("description edits never reset an uncertain decision", async () => {
+  const { id } = await seeded();
+  await env.DB.prepare("UPDATE reviews SET state = 'error' WHERE id = ?")
+    .bind(id)
+    .run();
+  currentPr.body = "An updated description";
+  expect((await notification()).status).toBe(200);
+  expect(sendMail).not.toHaveBeenCalled();
+  expect(
+    (
+      await env.DB.prepare("SELECT state FROM reviews WHERE id = ?")
+        .bind(id)
+        .first()
+    ).state,
+  ).toBe("error");
 });

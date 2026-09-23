@@ -67,3 +67,12 @@ export async function boundedText(request, maximum) {
   }
   return output + decoder.decode();
 }
+
+// These forms authenticate solely with a secret signed token, never cookies.
+// Privacy-preserving mail browsers and no-referrer POSTs can send Origin: null
+// or omit Origin. Fetch metadata is not an authentication credential either.
+// Reject explicit foreign origins; unknown origins still require a valid token.
+export function allowedFormOrigin(request, publicUrl) {
+  const origin = request.headers.get("Origin");
+  return !origin || origin === "null" || origin === new URL(publicUrl).origin;
+}

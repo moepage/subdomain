@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { createHmac } from "node:crypto";
 import { collectReview, githubClient } from "./github.js";
 
-const marker = "<!-- moe-page-submission-review -->";
+import { marker, submissionComment } from "./submission-comment.js";
 const event = JSON.parse(
   fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"),
 );
@@ -24,21 +24,14 @@ try {
 }
 const { pr, passed, errors } = review;
 const runUrl = `https://github.com/${repository}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-const reviewer = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i.test(
-  process.env.REVIEWER_LOGIN ?? "",
-)
-  ? `\n\nHuman review contact: @${process.env.REVIEWER_LOGIN}. This automated check is not their approval.`
-  : "";
-const safe = (value) =>
-  String(value).replace(/[&<>@`\[\]]/g, (char) => `&#${char.charCodeAt(0)};`);
-const body = `${marker}\n## ${passed ? "✅ Submission format passed" : "❌ Submission needs attention"}\n\nChecked revision \`${pr.head.sha}\` against \`${pr.base.sha}\`.\n\n${
-  passed
-    ? "The commit messages, changed JSON files, DNS values, and recorded ownership checks passed. A maintainer still needs to review website content and approve the request. Email review is available only after the service is configured."
-    : errors
-        .slice(0, 60)
-        .map((error) => `- ${safe(error)}`)
-        .join("\n")
-}${reviewer}\n\nSee [submission rules](https://github.com/${repository}/blob/main/CONTRIBUTING.md) and the [workflow run](${runUrl}). Maintenance PRs and delegated submissions require manual review.\n\nThis check does not verify website safety or prove domain ownership outside this repository.`;
+const body = submissionComment({
+  pr,
+  passed,
+  errors,
+  repository,
+  runUrl,
+  reviewer: process.env.REVIEWER_LOGIN,
+});
 // Update a bot-owned comment only; never edit an applicant's copied marker.
 let previous;
 for (let page = 1; page <= 10; page++) {
