@@ -1,0 +1,25 @@
+name: Test Review Automation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+      - run: npm test
+      - run: npm ci
+        working-directory: review-service
+      - run: npm test
+        working-directory: review-service
+      - run: npm run check
+        working-directory: review-service

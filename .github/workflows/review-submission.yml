@@ -1,0 +1,51 @@
+name: Review Subdomain Submission
+
+on:
+  pull_request_target:
+    types:
+      [
+        opened,
+        synchronize,
+        reopened,
+        edited,
+        ready_for_review,
+        converted_to_draft,
+      ]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to check and send an email for
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: submission-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    steps:
+      # SECURITY: run trusted base code only. Never check out or execute PR code here.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+      - name: Validate, comment, and notify
+        run: node scripts/review-pr.js
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          REVIEW_SERVICE_URL: ${{ vars.REVIEW_SERVICE_URL }}
+          REVIEW_WEBHOOK_SECRET: ${{ secrets.REVIEW_WEBHOOK_SECRET }}

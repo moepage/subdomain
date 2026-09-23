@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moe-page-review",
+  "main": "src/worker.js",
+  // Latest compatibility date supported by the pinned local workerd runtime.
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0 },
+  },
+  // No automatic invocation logs/traces: incoming URLs contain private review tokens.
+  // Explicit structured logs contain event names and PR numbers only.
+  "vars": {
+    "GITHUB_REPOSITORY": "zknmoe/moe.page-subdomains",
+    "MERGE_METHOD": "squash",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "moe-page-review",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+}

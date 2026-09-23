@@ -1,0 +1,16 @@
+{
+  "name": "moe-page-review-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.2.4",
+    "vitest": "4.1.11",
+    "wrangler": "4.137.0"
+  }
+}
