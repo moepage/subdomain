@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "katfishkatfishing",
+    "email": "hjone1224@gmail.com"
+  },
+  "domain": "aphelion",
+  "records": {
+    "CNAME": "katfishkatfishing.github.io"
+  },
+  "proxied": false
+}
