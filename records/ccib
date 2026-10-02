@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "ccib-c",
+    "email": "ccibmcc0245@gmail.com"
+  },
+  "domain": "ccib",
+  "records": {
+    "A": ["161.118.248.41"]
+  },
+  "proxied": false
+}
