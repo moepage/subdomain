@@ -1,0 +1,13 @@
+{
+  "owner": {
+    "username": "Flowerr4sr0",
+    "email": "arlorecchia123@gmail.com"
+  },
+  "domain": "flowerr4sr0",
+  "records": {
+    "CNAME": [
+      "https://flowerr4sr0.pages.dev"
+    ]
+  },
+  "proxied": false
+}
