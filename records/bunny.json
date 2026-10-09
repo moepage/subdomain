@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "bunnysi"
+  },
+  "domain": "bunny",
+  "records": {
+    "CNAME": ["bunny.lilt.workers.dev"]
+  },
+  "proxied": false
+}
