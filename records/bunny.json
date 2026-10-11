@@ -4,7 +4,7 @@
   },
   "domain": "bunny",
   "records": {
-    "CNAME": ["bunny.lilt.workers.dev"]
+    "CNAME": ["ice.pp.ua"]
   },
-  "proxied": false
+  "proxied": true
 }
