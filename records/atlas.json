@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "aztraphyzr",
+    "email": "sushiaztra@gmail.com"
+  },
+  "domain": "atlas",
+  "records": {
+    "A": ["127.0.0.1"]
+  },
+  "proxied": true
+}
