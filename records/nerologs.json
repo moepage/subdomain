@@ -5,7 +5,7 @@
   },
   "domain": "nerologs",
   "records": {
-    "CNAME": ["3e975085ede7b728.vercel-dns-017.com."]
+    "CNAME": "3e975085ede7b728.vercel-dns-017.com"
   },
   "proxied": false
 }
