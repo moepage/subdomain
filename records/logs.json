@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "kyyril",
+    "email": ""
+  },
+  "domain": "logs",
+  "records": {
+    "CNAME": ["cname.vercel-dns.com"]
+  },
+  "proxied": false
+}
