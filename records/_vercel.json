@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "kyyril"
+  },
+  "domain": "_vercel",
+  "records": {
+    "TXT": ["vc-domain-verify=logs.moe.page,43af2b1b050fe2654a0b"]
+  },
+  "proxied": false
+}
