@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "initial2024",
+    "email": "kango99w@gmail.com"
+  },
+  "domain": "yues",
+  "records": {
+    "CNAME": "kango99w-homepage.pages.dev"
+  },
+  "proxied": false
+}
