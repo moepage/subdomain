@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "BestSpark687090",
+    "email": "bestspark@bestspark.org"
+  },
+  "domain": "sprk",
+  "records": {
+    "A": ["15.204.67.205"]
+  },
+  "proxied": false
+}
