@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "vertibtw",
+    "email": "btwverti@gmail.com"
+  },
+  "domain": "verti",
+  "records": {
+    "CNAME": "vertibtw.github.io"
+  },
+  "proxied": false
+}
