@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "Ferxas",
+    "email": "ferxas321@protonmail.com"
+  },
+  "domain": "_vercel",
+  "records": {
+    "TXT": "vc-domain-verify=ferxas.moe.page,69ea397da9da04df9c34"
+  },
+  "proxied": false
+}
