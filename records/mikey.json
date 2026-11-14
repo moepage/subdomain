@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "miket-tsx"
+  },
+  "domain": "mikey",
+  "records": {
+    "CNAME": "miket-tsx.github.io"
+  },
+  "proxied": false
+}
