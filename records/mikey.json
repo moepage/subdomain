@@ -4,7 +4,7 @@
   },
   "domain": "mikey",
   "records": {
-    "CNAME": "miket-tsx.github.io"
+    "CNAME": "ingress.bot-hosting.cloud"
   },
   "proxied": false
 }
