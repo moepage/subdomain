@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "miket-tsx"
+  },
+  "domain": "mikey",
+  "records": {
+    "CNAME": "ingress.bot-hosting.cloud"
+  },
+  "proxied": false
+}
