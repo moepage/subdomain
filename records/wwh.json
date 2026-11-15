@@ -6,7 +6,7 @@
   "domain": "wwh",
   "records": {
     "CNAME": [
-      "wwhgames.pages.dev"
+      "wwh-redirect.pages.dev"
     ]
   },
   "proxied": true
