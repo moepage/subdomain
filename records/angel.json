@@ -6,6 +6,7 @@
   "domain": "angel",
   "records": {
     "A": ["198.183.180.10"]
+    "AAAA": ["2602:f289::10"]
   },
   "proxied": true
 }
