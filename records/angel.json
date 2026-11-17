@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "straycat2009",
+    "email": "solverfreak@gmail.com"
+  },
+  "domain": "angel",
+  "records": {
+    "A": ["198.183.180.10"]
+  },
+  "proxied": true
+}
