@@ -1,0 +1,11 @@
+
+{
+  "owner": {
+    "username": "niyeee4"
+  },
+  "domain": "elpherial",
+  "records": {
+    "CNAME": ["niyeee4.github.io"]
+  },
+  "proxied": false
+}
