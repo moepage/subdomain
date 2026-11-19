@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "Ferxas",
+    "email": "ferxas321@protonmail.com"
+  },
+  "domain": "ferxas",
+  "records": {
+    "CNAME": "cname.vercel-dns.com"
+  },
+  "proxied": false
+}
