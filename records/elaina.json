@@ -1,0 +1,13 @@
+{
+  "owner": {
+    "username": "shiyunyao",
+    "email": "shiyunyao777@gmail.com"
+  },
+  "domain": "elaina",
+  "records": {
+    "A": [
+      "43.156.47.206"
+    ]
+  },
+  "proxied": false
+}
