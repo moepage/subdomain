@@ -1,0 +1,12 @@
+{
+  "owner": {
+    "username": "bezydeynost"
+  },
+  "domain": "_vercel.bezydeynost",
+  "records": {
+    "TXT": [
+      "vc-domain-verify=bezydeynost.moe.page,93698756d90ce8344f8f"
+    ]
+  },
+  "proxied": false
+}

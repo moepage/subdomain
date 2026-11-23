@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "bezydeynost"
+  },
+  "domain": "bezydeynost",
+  "records": {
+    "CNAME": "5795d7f009abcc27.vercel-dns-017.com"
+  },
+  "proxied": false
+}
