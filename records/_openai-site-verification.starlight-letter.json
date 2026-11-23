@@ -1,0 +1,12 @@
+{
+  "owner": {
+    "username": "Liu75234095"
+  },
+  "domain": "_openai-site-verification.starlight-letter",
+  "records": {
+    "TXT": [
+      "openai-site-verification=2SaNQWbHw9V8SUT5lIRqO1Bhi1ZahyPteioXOu62GyA"
+    ]
+  },
+  "proxied": false
+}

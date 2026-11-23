@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "Liu75234095"
+  },
+  "domain": "starlight-letter",
+  "records": {
+    "CNAME": "custom-domains.chatgpt.site"
+  },
+  "proxied": false
+}

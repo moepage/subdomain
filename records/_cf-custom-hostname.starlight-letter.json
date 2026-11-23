@@ -1,0 +1,12 @@
+{
+  "owner": {
+    "username": "Liu75234095"
+  },
+  "domain": "_cf-custom-hostname.starlight-letter",
+  "records": {
+    "TXT": [
+      "8bc517a5-680f-4fcc-804d-e8480e15a225"
+    ]
+  },
+  "proxied": false
+}
