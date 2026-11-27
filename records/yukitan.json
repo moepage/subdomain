@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "tanakayukitan"
+  },
+  "domain": "yukitan",
+  "records": {
+    "CNAME": ["8eed9ce11987a927.vercel-dns-017.com"]
+  },
+  "proxied": false
+}
