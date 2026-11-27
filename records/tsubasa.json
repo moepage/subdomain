@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "username": "4163",
+    "email": "x4163x@gmail.com"
+  },
+  "domain": "tsubasa",
+  "records": {
+    "CNAME": "tsubasa-cloud.pages.dev"
+  },
+  "proxied": false
+}
