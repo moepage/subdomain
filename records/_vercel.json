@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "username": "tanakayukitan"
+  },
+  "domain": "_vercel",
+  "records": {
+    "TXT": ["vc-domain-verify=yukitan.moe.page,1cbae8831f59fd9bdcf3"]
+  },
+  "proxied": false
+}
